@@ -1,8 +1,14 @@
-import 'package:dartcash/infrastructure/dart_cash_address.dart';
+import 'package:dartson/dartson.dart';
+import 'package:dartcash/block/transaction_quant.dart';
 
+@Entity()
 class Transaction {
-  final String hash;
-  final List<DartCashAddress> from;
-  final List<DartCashAddress> to;
 
+  @Property()
+  final String hash;
+
+  @Property()
+  final List<TransactionQuant> quants;
+
+  Transaction(this.hash, this.quants);
 }
