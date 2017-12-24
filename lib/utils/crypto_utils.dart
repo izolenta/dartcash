@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:convert/convert.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:bignum/bignum.dart';
 import 'package:pointycastle/pointycastle.dart';
@@ -12,11 +13,13 @@ class CryptoUtils {
 
   static final int address_checksum_bytes = 4;
   static final String address_prefix = "DC";
+  static final String domain_name = "secp256k1";
+  static final String signer_algorithm = "SHA-1/DET-ECDSA";
   static final BigInteger BIG_INT_58 = new BigInteger("58");
   static final Function eq = const ListEquality().equals;
 
   static AsymmetricKeyPair generateKeyPair() {
-    var rsapars = new RSAKeyGeneratorParameters(new BigInteger("65537"), 2048, 12);
+    var rsapars = new ECKeyGeneratorParameters(new ECDomainParameters(domain_name));
     var secureRandom = new SecureRandom("Fortuna");
 
     var random = new Random();
@@ -27,7 +30,7 @@ class CryptoUtils {
     secureRandom.seed(new KeyParameter(new Uint8List.fromList(seeds)));
 
     var params = new ParametersWithRandom(rsapars, secureRandom);
-    var keyGenerator = new KeyGenerator("RSA")
+    var keyGenerator = new KeyGenerator("EC")
       ..init( params )
     ;
 
@@ -46,9 +49,16 @@ class CryptoUtils {
 //    var decrypted = cipher.process(cipherText);
 //    print("Decrypted: ${new String.fromCharCodes(decrypted)}");
   }
-  
-  static String createDartCashAddress(RSAPublicKey publicKey) {
-    final hash = crypto.sha256.convert(publicKey.modulus.toByteArray()).bytes.toList();
+
+  static String signContent(String content, ECPrivateKey privateKey) {
+    final signer = new Signer(signer_algorithm);
+    signer.init(true, new PrivateKeyParameter(privateKey));
+    final signature = signer.generateSignature(new Uint8List.fromList(content.codeUnits)) as ECSignature;
+    return "${signature.r},${signature.s}";
+  }
+
+  static String createDartCashAddress(ECPublicKey publicKey) {
+    final hash = crypto.sha256.convert(ecPublicKeyToString(publicKey).codeUnits).bytes.toList();
     final checksum = _getCheckSum(hash);
     hash.addAll(checksum);
     return "$address_prefix${_encodeBase58(hash)}";
@@ -109,6 +119,8 @@ class CryptoUtils {
     List<int> digestBytes = crypto.sha256.convert(crypto.sha256.convert(array).bytes).bytes;
     return digestBytes.take(address_checksum_bytes).toList();
   }
+
+  static String ecPublicKeyToString(ECPublicKey key) => "${key.Q.x},${key.Q.y}";
 
   static bool checkDartCashAddress(String address) {
     if (!address.startsWith(address_prefix)) {
